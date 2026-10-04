@@ -1,0 +1,1417 @@
+﻿﻿﻿﻿﻿<!DOCTYPE html>
+
+<html lang="tr">
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>ULTRON</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+
+<style>
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+
+
+body {
+
+    background-color: #030100;
+
+    background-image: 
+
+        radial-gradient(circle at 50% 50%, rgba(0, 180, 255, 0.08) 0%, transparent 60%),
+
+        linear-gradient(rgba(0, 180, 255, 0.03) 1px, transparent 1px),
+
+        linear-gradient(90deg, rgba(0, 180, 255, 0.03) 1px, transparent 1px);
+
+    background-size: 100% 100%, 30px 30px, 30px 30px;
+
+    color:#fff;
+
+    font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+
+    overflow:hidden;
+
+    height:100vh;
+
+    display:flex;
+
+    flex-direction:column;
+
+}
+
+
+
+.dashboard {
+
+    display:flex; flex:1;
+
+    padding:16px; gap:16px;
+
+    overflow:hidden; min-height:0;
+
+}
+
+
+
+.panel {
+    background: rgba(12, 4, 0, 0.85);
+    border: 1px solid rgba(0, 180, 255, 0.1);
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    opacity: 0;
+    transform: scale(0.9);
+}
+
+.panel::before {
+
+    content:''; position:absolute; top:0; left:0; right:0; height:2px;
+
+    background:linear-gradient(90deg, transparent, rgba(0, 180, 255,0.8), transparent);
+
+    box-shadow: 0 0 10px rgba(0, 180, 255,0.8);
+
+}
+
+
+
+.side-panel  { flex:0 0 240px; }
+
+.center-panel{ 
+
+    flex:1; 
+
+    
+
+    opacity: 0;
+
+    transform: scale(0.5);
+
+}
+
+
+
+@keyframes startupGlow {
+    0%   { opacity: 0; transform: scale(0.9); box-shadow: 0 0 0 rgba(0, 180, 255, 0); border-color: rgba(0, 180, 255, 0.1); }
+    50%  { opacity: 1; transform: scale(1.02); box-shadow: 0 0 40px rgba(0, 180, 255, 0.4); border-color: rgba(0, 180, 255, 0.6); }
+    100% { opacity: 1; transform: scale(1.0); box-shadow: 0 0 10px rgba(0, 180, 255, 0.1); border-color: rgba(0, 180, 255, 0.2); }
+}
+
+    50% { opacity: 0.8; transform: scale(1.1) translateY(-10px); filter: brightness(1.5); }
+
+    100% { opacity: 0; transform: scale(1) translateY(0); filter: brightness(1); }
+
+}
+
+
+
+h3 {
+
+    color: #00c3ff; font-size: 13px; letter-spacing: 3px;
+
+    text-transform: uppercase; padding-bottom: 8px; margin-bottom: 12px;
+
+    border-bottom: 1px solid rgba(0, 180, 255, 0.3);
+
+    flex-shrink: 0; text-shadow: 0 0 12px rgba(0, 180, 255, 0.6);
+
+    font-family: 'Orbitron', 'Consolas', sans-serif;
+
+    font-weight: 700;
+
+}
+
+
+
+/* â”€ SOL: BİYO â”€ */
+
+.bio-wrap {
+
+    flex:1; position:relative; min-height:0;
+
+    display:flex; align-items:center; justify-content:center;
+
+    overflow:hidden;
+
+    border-radius: 8px;
+
+    background: rgba(0,0,0,0.4);
+
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+
+    transform: translateZ(0); /* Titreme engelleme */
+
+}
+
+#xray-img {
+
+    position: absolute; top: 0; left: 0;
+
+    width:100%; height:100%; display:block;
+
+    object-fit:cover; object-position: top center;
+
+    filter: hue-rotate(210deg) saturate(2.0) brightness(0.9) contrast(1.1);
+
+}
+
+.heart-pulse {
+
+    position:absolute; width:18px; height:18px;
+
+    background: radial-gradient(circle, rgba(255,20,50,1) 0%, rgba(255,20,50,0) 70%);
+
+    box-shadow:0 0 12px rgba(255,20,50,0.9);
+
+    border-radius:50%; 
+
+    transform: translate3d(-50%, -50%, 0);
+
+    animation: hbeat 0.85s ease-in-out infinite;
+
+    will-change: transform, opacity;
+
+    z-index: 10;
+
+}
+
+@keyframes hbeat {
+
+    0%, 100% { transform:translate3d(-50%,-50%,0) scale(1.0); opacity:0.6; }
+
+    20%      { transform:translate3d(-50%,-50%,0) scale(1.8); opacity:0.9; }
+
+    40%      { transform:translate3d(-50%,-50%,0) scale(1.1); opacity:0.7; }
+
+    60%      { transform:translate3d(-50%,-50%,0) scale(1.5); opacity:0.8; }
+
+}
+
+
+
+@keyframes spin { 100% { transform:rotate3d(0,0,1,360deg); } }
+
+@keyframes pulse { 0%,100%{opacity:0.6;} 50%{opacity:1;} }
+
+.ecg-wrap { height:32px; flex-shrink:0; margin-top:10px; background: rgba(0,0,0,0.3); border-radius: 6px; padding:2px;}
+
+#ecg-canvas { width:100%; height:100%; display:block; }
+
+
+
+.stat-row {
+
+    display:flex; justify-content:space-between;
+
+    font-size: 13px; font-weight: 600; margin-top: 6px; padding: 5px 0;
+
+    border-bottom:1px solid rgba(0, 180, 255,0.15);
+
+    flex-shrink:0; letter-spacing: 1px;
+
+}
+
+.sv { color:#00c3ff; font-weight:700; text-shadow: 0 0 8px rgba(0, 180, 255,0.4); }
+
+
+
+/* â”€ ORTA: KÜRE CANVAS â”€ */
+
+.orb-wrapper { flex:1; position: relative; width: 100%; min-height: 0; overflow: hidden; }
+
+#orb-canvas { position: absolute; top:0; left:0; width:100%; height:100%; display:block; }
+
+
+
+/* â”€ SAÄ: SİSTEM â”€ */
+
+.sys-item {
+
+    font-size:12px; font-weight: 500; margin:6px 0;
+
+    display:flex; justify-content:space-between; align-items:center;
+
+    flex-shrink:0; letter-spacing: 0.5px;
+
+}
+
+.dot { width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:6px; }
+
+.on   { background:#00ff88; box-shadow:0 0 8px #00ff88; animation:dpulse 2s infinite; }
+
+.off  { background:#00c3ff; box-shadow:0 0 6px #00c3ff; }
+
+.warn { background:#00ffff; box-shadow:0 0 8px #00ffff; }
+
+@keyframes dpulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.bar-wrap { width:80px;height:4px;background:rgba(0,0,0,0.6);border-radius:2px;overflow:hidden; box-shadow: inset 0 0 4px #000; }
+
+.bar-fill { height:100%;background:linear-gradient(90deg,#00c3ff,#00ffff);
+
+            border-radius:2px;transition:width 1.5s ease; box-shadow: 0 0 8px #00c3ff; }
+
+#action-log { font-size:11px;color:#aaa;overflow-y:auto;flex:1;margin-top:8px; font-family: 'Consolas', monospace; }
+
+#action-log div { margin:4px 0;padding:4px 0;border-bottom:1px solid rgba(0, 180, 255,0.1); }
+
+#action-log div::before { content: "> "; color: #00c3ff; }
+
+
+
+/* â”€ CHAT â”€ */
+
+.chat-section {
+    background: rgba(12, 4, 0, 0.85);
+    border-top: 1px solid rgba(0, 180, 255, 0.2);
+    padding: 15px 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    opacity: 0;
+    transform: scale(0.9);
+}
+
+.chat-history {
+
+    flex:1; overflow-y:auto; padding:12px 16px;
+
+    background:rgba(5,2,0,0.88);
+
+    border:1px solid rgba(0, 180, 255,0.3);
+
+    border-bottom:none;
+
+    border-radius:16px 16px 0 0;
+
+    font-size:13px;
+
+    line-height:1.6;
+
+    letter-spacing: 0.5px;
+
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.9);
+
+}
+
+.chat-history::-webkit-scrollbar{width:6px}
+
+.chat-history::-webkit-scrollbar-thumb{background:rgba(0, 180, 255,0.6); border-radius:6px;}
+
+.msg{margin:6px 0;}
+
+.me { color:#00d4ff; text-shadow:0 0 5px rgba(0, 180, 255,0.3); }
+
+.mu { color:#00ffcc; font-weight: 600; text-shadow:0 0 5px rgba(0,255,200,0.3); }
+
+.ms { color:#888; font-size:12px; font-style: italic; }
+
+
+
+.chat-input {
+
+    display:flex;
+
+    background: rgba(0, 0, 0, 0.7);
+
+    border-radius: 0 0 16px 16px;
+
+    border: 1px solid rgba(0, 180, 255, 0.4);
+
+    box-shadow: inset 0 0 15px rgba(0,0,0,0.8), 0 5px 15px rgba(0,0,0,0.5);
+
+    padding: 8px;
+
+}
+
+.chat-input input {
+
+    flex:1; background:transparent; border:none; color:#eee;
+
+    padding:8px 16px; font-family:inherit; font-size:13px; outline:none;
+
+}
+
+.chat-input input::placeholder { color:#666; font-style: italic; }
+
+.chat-input button {
+
+    background:linear-gradient(135deg, #00c3ff, #00c3ff);
+
+    border:none; color:#fff;
+
+    border-radius: 20px;
+
+    padding:0 24px; cursor:pointer; font-size:12px; font-weight:700;
+
+    letter-spacing:1px; transition:all .3s;
+
+    box-shadow: 0 4px 10px rgba(0, 180, 255,0.4);
+
+}
+
+.chat-input button:hover { 
+
+    background:linear-gradient(135deg, #00c3ff, #00c3ff);
+
+    box-shadow: 0 4px 15px rgba(0, 180, 255,0.7);
+
+    transform: translateY(-1px);
+
+}
+
+
+
+/* â”€ STATUS BAR â”€ */
+
+.statusbar {
+
+    height:28px; background:rgba(8,4,2,0.9);
+
+    border-top:1px solid rgba(0, 180, 255,0.4);
+
+    display:flex; align-items:center;
+
+    padding:0 20px; gap:30px; font-size:11px; color:#aaa;
+
+    letter-spacing:1px; font-weight: 600;
+
+    box-shadow: 0 -4px 15px rgba(0,0,0,0.8);
+
+}
+
+.statusbar .s { color:#00c3ff; text-shadow: 0 0 5px rgba(0, 180, 255,0.3); }
+
+</style>
+
+</head>
+
+<body>
+
+
+
+<div class="dashboard">
+
+
+
+    <!-- SOL: X-RAY -->
+
+    <div class="panel side-panel">
+
+        <h3>// Biyometrik Tarama</h3>
+
+        <div class="bio-wrap" id="bio-wrap">
+
+            <img id="xray-img" src="assets/human_xray.jpg" alt="">
+
+            <div class="heart-pulse" id="heart-dot"></div>
+
+        </div>
+
+        <div class="ecg-wrap"><canvas id="ecg-canvas"></canvas></div>
+
+        <div class="stat-row"><span>NABIZ</span><span class="sv">72 BPM</span></div>
+
+        <div class="stat-row"><span>SpO2</span><span class="sv">% 98</span></div>
+
+        <div class="stat-row"><span>STRES</span><span class="sv">DÜŞÜK</span></div>
+
+        <div class="stat-row"><span>BOY / KİLO</span><span class="sv">180 cm / 75 kg</span></div>
+
+    </div>
+
+
+
+    <!-- ORTA: ULTRON KÜRE -->
+
+    <div class="panel center-panel">
+
+        <h3>// ULTRON MERKEZİ ÇEKİRDEK</h3>
+
+        <div class="orb-wrapper">
+
+            <canvas id="orb-canvas"></canvas>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- SAÄ: SİSTEM -->
+
+    <div class="panel side-panel">
+
+        <h3>// Sistem Durumu</h3>
+
+        <div class="sys-item"><span><span class="dot on"></span>Otonom Dinleme</span><span class="sv" style="font-size:8px">AKTİF</span></div>
+
+        <div class="sys-item"><span><span class="dot off"></span>Görüntü İşleme</span><span style="color:#00c3ff;font-size:8px">PASİF</span></div>
+
+        <div class="sys-item"><span><span class="dot on"></span>WhatsApp</span><span class="sv" style="font-size:8px">AKTİF</span></div>
+
+        <div class="sys-item"><span><span class="dot on"></span>Hava Durumu</span><span class="sv" style="font-size:8px">AKTİF</span></div>
+
+        <div class="sys-item"><span><span class="dot warn"></span>WearOS</span><span style="color:#00ffff;font-size:8px">BEKLEMEDE</span></div>
+
+        <div class="sys-item"><span><span class="dot off"></span>Offline Model</span><span style="color:#555;font-size:8px">HAZIR</span></div>
+
+        <h3 style="margin-top:12px">// Kaynak Kullanımı</h3>
+
+        <div class="sys-item"><span>CPU</span><div style="display:flex;align-items:center;gap:5px"><div class="bar-wrap"><div class="bar-fill" id="cpu-bar" style="width:15%"></div></div><span class="sv" id="cpu-val">15%</span></div></div>
+
+        <div class="sys-item"><span>RAM</span><div style="display:flex;align-items:center;gap:5px"><div class="bar-wrap"><div class="bar-fill" id="ram-bar" style="width:42%"></div></div><span class="sv" id="ram-val">42%</span></div></div>
+
+        <div class="sys-item"><span>GPU</span><div style="display:flex;align-items:center;gap:5px"><div class="bar-wrap"><div class="bar-fill" id="gpu-bar" style="width:8%"></div></div><span class="sv" id="gpu-val">8%</span></div></div>
+
+        <h3 style="margin-top:12px">// AKTİF Protokoller</h3>
+
+        <div id="todo-list" style="font-size:11px; color:#aaa; margin-bottom:8px; line-height:1.5;">
+
+            <div style="color:#00ff88;">[X] ULTRON UI Revizyonu</div>
+
+            <div style="color:#00ff88;">[X] Haber/X Gündemi Entegrasyonu</div>
+
+            <div style="color:#00ff88;">[X] Offline Model (Ollama) Bağlantısı</div>
+
+        </div>
+
+        <h3 style="margin-top:4px">// İşlem Kaydı</h3>
+
+        <div id="action-log"></div>
+
+    </div>
+
+
+
+</div>
+
+
+
+<div class="chat-section">
+
+    <div class="chat-history" id="chat-history">
+
+        <div class="msg ms">[SYS] ULTRON v2.0 başlatılıyor...</div>
+
+    </div>
+
+    <div class="chat-input">
+
+        <input id="user-input" type="text"
+
+               placeholder="Komut girin veya 'Ultron' diyerek sesle konuşun..."
+
+               onkeypress="if(event.key==='Enter')sendMessage()">
+
+        <button onclick="sendMessage()">İİLET</button>
+
+    </div>
+
+</div>
+
+
+
+<div class="statusbar">
+
+    <span class="s">ULTRON v2.0</span>
+
+    <span class="s" id="st-model">â— Gemini 2.5 Flash [ONLINE]</span>
+
+    <span class="s" id="st-time">--:--:--</span>
+
+    <span style="margin-left:auto" class="s" id="st-listen">â— Uyku Modu</span>
+
+</div>
+
+
+
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+
+<script>
+
+'use strict';
+
+
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+// GLOBAL DURUMLAR VE SİNYALLER (TDZ HATASINI ÖNLER)
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+var backend = null;
+
+var isVoiceActive = false;
+
+var isUltronSpeaking = false;
+
+var micVolume = 0;
+
+var timePhase = 0;
+
+
+
+window.onerror = function(msg, url, lineNo, columnNo, error) {
+
+    const d = document.createElement('div');
+
+    d.className = 'msg me';
+
+    d.style.color = 'red';
+
+    d.innerHTML = '<strong>[JS HATA]:</strong> ' + msg + ' (Satır: ' + lineNo + ')';
+
+    const h = document.getElementById('chat-history');
+
+    if (h) { h.appendChild(d); h.scrollTop = h.scrollHeight; }
+
+    return false;
+
+};
+
+
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+// ULTRON / IRON MAN REAKTÖRÜ â€” Canvas 2D
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+(function () {
+
+    const canvas = document.getElementById('orb-canvas');
+
+    const ctx    = canvas.getContext('2d');
+
+
+
+    let volume = 0, targetVol = 0, t = 0;
+
+    let timePhase = 0;
+
+    
+
+    // Konuşma simülasyonu için değişkenler
+
+    let speechEnvelope = 0;
+
+    let nextSyllableTime = 0;
+
+
+
+    function resize() {
+
+        const w = Math.floor(canvas.clientWidth  || 500);
+
+        const h = Math.floor(canvas.clientHeight || 500);
+
+        if (canvas.width !== w || canvas.height !== h) {
+
+            canvas.width = w;
+
+            canvas.height = h;
+
+        }
+
+    }
+
+    resize();
+
+
+
+    function drawSegmentRing(cx, cy, r, segCount, gapDeg, lineW, color, angle) {
+
+        const gapR   = gapDeg  * Math.PI / 180;
+
+        const arcLen = (Math.PI * 2 - gapR * segCount) / segCount;
+
+        ctx.strokeStyle = color;
+
+        ctx.lineWidth   = lineW;
+
+        for (let i = 0; i < segCount; i++) {
+
+            const start = angle + i * (arcLen + gapR);
+
+            ctx.beginPath();
+
+            ctx.arc(cx, cy, r, start, start + arcLen);
+
+            ctx.stroke();
+
+        }
+
+    }
+
+
+
+    function drawDotRing(cx, cy, r, count, angle, dotR, color) {
+
+        ctx.fillStyle = color;
+
+        for (let i = 0; i < count; i++) {
+
+            const a  = angle + (i / count) * Math.PI * 2;
+
+            const px = cx + r * Math.cos(a);
+
+            const py = cy + r * Math.sin(a);
+
+            ctx.beginPath();
+
+            ctx.arc(px, py, dotR, 0, Math.PI * 2);
+
+            ctx.fill();
+
+        }
+
+    }
+
+
+
+    function drawTickRing(cx, cy, r, count, angle, len, w, color) {
+
+        ctx.strokeStyle = color;
+
+        ctx.lineWidth   = w;
+
+        for (let i = 0; i < count; i++) {
+
+            const a  = angle + (i / count) * Math.PI * 2;
+
+            const ca = Math.cos(a), sa = Math.sin(a);
+
+            ctx.beginPath();
+
+            ctx.moveTo(cx + (r - len / 2) * ca, cy + (r - len / 2) * sa);
+
+            ctx.lineTo(cx + (r + len / 2) * ca, cy + (r + len / 2) * sa);
+
+            ctx.stroke();
+
+        }
+
+    }
+
+
+
+    let lastFrameTime = 0;
+    window.window.startupProgress = 1.0;
+    window.window.isStartingUp = false;
+
+    function frame(time) {
+
+        requestAnimationFrame(frame);
+
+        if (time - lastFrameTime < 16) return; // Maksimum 30 FPS
+
+        lastFrameTime = time;
+
+        
+
+        t += 0.006;
+
+        timePhase += 0.033;
+
+        
+
+        if (window.isStartingUp) {
+            window.startupProgress += 0.015; // Approx 1.0 sec animation
+            if (window.startupProgress >= 1.0) {
+                window.startupProgress = 1.0;
+                window.isStartingUp = false;
+            }
+        }
+        let rawVol = 0;
+
+        if (isUltronSpeaking) {
+
+            // Gerçekçi hece (syllable) simülasyonu
+
+            if (timePhase > nextSyllableTime) {
+
+                // Yeni bir hece veya kelime vurgusu
+
+                speechEnvelope = 50 + Math.random() * 50; // 50-100 arası ani ses patlaması
+
+                // Sonraki hece arası boşluk (50ms ile 250ms arası, rastgele duraksamalar)
+
+                nextSyllableTime = timePhase + 0.1 + Math.random() * 0.4;
+
+            }
+
+            // Hecenin sönümlenmesi (Decay)
+
+            speechEnvelope *= 0.82; 
+
+            rawVol = speechEnvelope;
+
+        } else if (isVoiceActive) {
+
+            rawVol = micVolume; // GERCEK SES
+
+        } else {
+
+            rawVol = 15 + Math.sin(timePhase * 1.5) * 15; // Derin ve sakin idle nefes alma (0-30 arası)
+
+            speechEnvelope = 0;
+
+        }
+
+        
+
+        if (isNaN(rawVol)) rawVol = 0; // Safety check
+
+        
+
+        targetVol = Math.min(rawVol / 75.0, 1.0);
+
+        
+
+        volume += (targetVol - volume) * 0.25; // Daha hızlı (snappy) tepki veren lerp
+
+        if (isNaN(volume)) volume = 0; // Safety check
+
+        
+
+        resize(); // Güvenli resize kontrolü (sadece değişirse günceller)
+
+
+
+        const W = canvas.width, H = canvas.height;
+
+        const cx = W / 2, cy = H / 2;
+
+        // Taban yarıçap (ekrana sığacak şekilde küçültüldü ki büyümeye yer kalsın)
+
+        
+        // Easing function for sick iron-man assembly effect
+        const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        const p = ease(window.startupProgress);
+        const BASE = Math.min(W, H) * 0.22 * p; // Size reduced from 0.35 to 0.22 and multiplied by progress
+ 
+
+        const S    = 1 + volume * 0.45; // ÇOK DAHA AGRESİF BÜYÜME (Pumping)
+
+
+
+        ctx.clearRect(0, 0, W, H);
+
+
+
+        // â”€â”€ Arka plan koyu dış parlaması â”€â”€
+
+        const bgGlow = ctx.createRadialGradient(cx, cy, BASE * 0.3, cx, cy, BASE * 1.6);
+
+        bgGlow.addColorStop(0,   `rgba(0, 180, 255,${0.05 + volume * 0.05})`);
+
+        bgGlow.addColorStop(0.6, `rgba(0, 40, 120,0.02)`);
+
+        bgGlow.addColorStop(1,   'rgba(0,0,0,0)');
+
+        ctx.fillStyle = bgGlow;
+
+        ctx.beginPath(); ctx.arc(cx, cy, BASE * 1.6, 0, Math.PI * 2); ctx.fill();
+
+
+
+        // â”€â”€ DIÅTAN İAE: Halkalar (indir.jpg referansı) â”€â”€
+
+        const introSpin = (1 - p) * Math.PI * 5;
+        const ang1 = t * 0.18 + introSpin;
+
+        const ang2 = -t * 0.28 - introSpin;
+
+        const ang3 = t * 0.12;
+
+        const ang4 = -t * 0.22;
+
+        const ang5 = t * 0.35;
+
+
+
+        const C1 = `rgba(0, 180, 255,${0.55+volume*0.3})`;
+
+        const C2 = `rgba(0, 180, 255,${0.65+volume*0.3})`;
+
+        const C3 = `rgba(0, 200, 255,${0.5+volume*0.2})`;
+
+        const C4 = `rgba(0, 180, 255,${0.7+volume*0.3})`;
+
+
+
+        // Halka 1: En dış ince çizgi
+
+        ctx.beginPath();
+
+        ctx.arc(cx, cy, BASE * S * 1.0, 0, Math.PI * 2);
+
+        ctx.strokeStyle = `rgba(0, 180, 255,${0.25+volume*0.15})`;
+
+        ctx.lineWidth = 1;
+
+        ctx.stroke();
+
+
+
+        // Halka 2: Noktalı dış halka
+
+        drawDotRing(cx, cy, BASE * S * 0.95, 60, ang1, 1.2, `rgba(0, 180, 255,${0.4+volume*0.2})`);
+
+
+
+        // Halka 3: Büyük segmentli ana dış halka
+
+        drawSegmentRing(cx, cy, BASE * S * 0.90, 4, 5, 3.5, C1, ang2, 60);
+
+
+
+        // Halka 4: Kısa tick'ler (saat gibi)
+
+        drawTickRing(cx, cy, BASE * S * 0.84, 36, ang3, 5, 1, `rgba(0, 180, 255,${0.45+volume*0.2})`);
+
+
+
+        // Halka 5: Yoğun segmentli halka (indir.jpg'deki yoğun orta halka)
+
+        drawSegmentRing(cx, cy, BASE * S * 0.79, 12, 3, 2, C2, ang4, 20);
+
+
+
+        // Halka 6: Kare/dikdörtgen işaretli halka (indir.jpg karakteristiği)
+
+        const sq6 = BASE * S * 0.74;
+
+        for (let i = 0; i < 20; i++) {
+
+            const a  = ang5 + (i / 20) * Math.PI * 2;
+
+            const px = cx + sq6 * Math.cos(a);
+
+            const py = cy + sq6 * Math.sin(a);
+
+            const sz = i % 4 === 0 ? 4 : 2;
+
+            ctx.fillStyle = i % 4 === 0 ? C1 : `rgba(0, 180, 255,0.4)`;
+
+            ctx.fillRect(px - sz / 2, py - sz / 2, sz, sz);
+
+        }
+
+
+
+        // Halka 7: Ters dönen segment
+
+        drawSegmentRing(cx, cy, BASE * S * 0.68, 8, 4, 2.5, C3, -ang2 * 1.2, 30);
+
+
+
+        // Halka 8: Noktalı iç çember
+
+        drawDotRing(cx, cy, BASE * S * 0.62, 40, ang2, 1.2, `rgba(0, 200, 255,${0.6+volume*0.2})`);
+
+
+
+        // â”€â”€ Merkez Çekirdek Aizgisi â”€â”€
+
+        ctx.beginPath();
+
+        ctx.arc(cx, cy, BASE * 0.52 * S, 0, Math.PI * 2);
+
+        ctx.strokeStyle = `rgba(100, 220, 255,${0.7+volume*0.3})`;
+
+        ctx.lineWidth   = 2.5;
+
+        ctx.stroke();
+
+
+
+        // İç alan hafif dolu (glow)
+
+        const innerGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, BASE * 0.52 * S);
+
+        innerGlow.addColorStop(0,   `rgba(100, 220, 255,${0.15 + volume*0.1})`);
+
+        innerGlow.addColorStop(1,   'rgba(0, 180, 255,0)');
+
+        ctx.fillStyle = innerGlow;
+
+        ctx.fill();
+
+
+
+        // â”€â”€ Merkez Metin â”€â”€
+
+        ctx.font        = `bold ${Math.floor(BASE * 0.15 * S * p)}px "Courier New", Courier, monospace`;
+
+        ctx.textAlign   = 'center';
+
+        ctx.textBaseline= 'middle';
+
+        ctx.fillStyle = `rgba(100, 220, 255,${0.85+volume*0.15})`;
+
+        ctx.fillText('ULTRON', cx, cy);
+
+
+
+
+
+
+
+
+
+        // â”€â”€ Ses dalgaları â”€â”€
+
+        if (volume > 0.05) {
+
+            for (let i = 0; i < 3; i++) {
+
+                const wr = BASE * S * (1.02 + i * 0.05) + volume * 25 * (i + 1);
+
+                const wa = Math.max(0, (0.4 - i * 0.12) * volume);
+
+                ctx.beginPath();
+
+                ctx.arc(cx, cy, wr, 0, Math.PI * 2);
+
+                ctx.strokeStyle = `rgba(0, 180, 255,${wa})`;
+
+                ctx.lineWidth = 1.5;
+
+                ctx.stroke();
+
+            }
+
+        }
+
+    }
+
+
+
+    frame();
+
+})();
+
+
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+// ECG ANİMASYONU
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+(function () {
+
+    const c   = document.getElementById('ecg-canvas');
+
+    const ctx = c.getContext('2d');
+
+    const buf = [];
+
+    let t = 0;
+
+
+
+    function resize() {
+
+        c.width  = c.parentElement.clientWidth || 180;
+
+        c.height = 26;
+
+    }
+
+    new ResizeObserver(resize).observe(c.parentElement);
+
+    resize();
+
+
+
+    function wave(v) {
+
+        const cy = v % 1;
+
+        if (cy < 0.08) return -cy * 110;
+
+        if (cy < 0.12) return -8.8 + (cy - 0.08) * 750;
+
+        if (cy < 0.16) return 21.2 - (cy - 0.12) * 620;
+
+        if (cy < 0.22) return -3.6 + (cy - 0.16) * 22;
+
+        return Math.sin(cy * 25) * 0.5;
+
+    }
+
+
+
+    let lastDrawTime = 0;
+
+    function draw(time) {
+
+        requestAnimationFrame(draw);
+
+        if (time - lastDrawTime < 16) return; // 30 FPS
+
+        lastDrawTime = time;
+
+
+
+        t += 0.005;
+
+        const W = c.width, H = c.height, mid = H / 2;
+
+        while (buf.length < W) buf.push(mid);
+
+        buf.push(mid + wave(t));
+
+        buf.shift();
+
+
+
+        ctx.clearRect(0, 0, W, H);
+
+        ctx.beginPath();
+
+        ctx.strokeStyle = 'rgba(255,20,50,1)';
+
+        ctx.lineWidth   = 1.5;
+
+        ctx.shadowColor = '#00c3ff';
+
+        ctx.shadowBlur  = 3;
+
+        for (let i = 0; i < buf.length; i++) {
+
+            i === 0 ? ctx.moveTo(i, buf[i]) : ctx.lineTo(i, buf[i]);
+
+        }
+
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+
+    }
+
+    draw();
+
+})();
+
+
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+// SAAT + SİMÜLE KAYNAK
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+setInterval(() => {
+
+    document.getElementById('st-time').textContent = new Date().toTimeString().slice(0,8);
+
+    // Real stats updated via python updateRealStats()
+
+}, 2500);
+
+
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+// CHAT + BACKEND (YENİ SIFIR-TİTREME MİMARİSİ & CANLI REAKTÖR)
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+
+
+function appendMsg(sender, text, cls) {
+
+    const d = document.createElement('div');
+
+    d.className = 'msg ' + (cls || '');
+
+    d.innerHTML = '<strong>' + sender + ':</strong> ' + text;
+
+    const h = document.getElementById('chat-history');
+
+    h.appendChild(d);
+
+    h.scrollTop = h.scrollHeight;
+
+}
+
+
+
+function logAction(txt) {
+
+    const d = document.createElement('div');
+
+    d.textContent = '> ' + (txt || '').slice(0, 55);
+
+    const el = document.getElementById('action-log');
+
+    if (el) {
+
+        el.appendChild(d);
+
+        el.scrollTop = el.scrollHeight;
+
+        while (el.children.length > 15) el.removeChild(el.firstChild);
+
+    }
+
+}
+
+
+
+function sendMessage() {
+
+    const inp  = document.getElementById('user-input');
+
+    const text = inp.value.trim();
+
+    if (!text) return;
+
+    appendMsg('Sen', text, 'mu');
+
+    inp.value = '';
+
+    if (backend) backend.processInput(text);
+
+}
+
+
+
+let currentStreamDiv = null;
+
+
+
+let hasAnimated = false;
+
+window.onload = function() {
+    triggerWakeAnimation();
+};
+function triggerWakeAnimation() {
+    if (hasAnimated) return;
+    hasAnimated = true;
+    window.startupProgress = 0.0;
+    window.isStartingUp = true;
+    
+    const elements = document.querySelectorAll('.panel, .chat-section');
+    elements.forEach(el => {
+        el.style.animation = 'none';
+        el.offsetHeight;
+        el.style.animation = 'startupGlow 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
+    });
+}
+
+
+
+function receiveMessage(text) {
+
+    if (text === "") {
+
+        // Yeni bir akış (stream) başlat
+
+        currentStreamDiv = document.createElement('div');
+
+        currentStreamDiv.className = 'msg me';
+
+        currentStreamDiv.innerHTML = '<strong>ULTRON:</strong> <span class="stream-text"></span>';
+
+        const h = document.getElementById('chat-history');
+
+        h.appendChild(currentStreamDiv);
+
+        h.scrollTop = h.scrollHeight;
+
+    } else {
+
+        // Akışı güncelle
+
+        if (!currentStreamDiv) {
+
+            receiveMessage("");
+
+        }
+
+        const span = currentStreamDiv.querySelector('.stream-text');
+
+        if (span) {
+
+            // Sadece metni güvenli bir şekilde ekle
+
+            span.textContent = text;
+
+        }
+
+        const h = document.getElementById('chat-history');
+
+        h.scrollTop = h.scrollHeight;
+
+    }
+
+}
+
+
+
+function receiveVoiceInput(text) {
+
+    if (text) appendMsg('Sen (Sesli)', text, 'mu');
+
+}
+
+
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+// KUSURSUZ KALP NOKTASI MATEMATİÄİ (object-fit: cover için)
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+function updateHeartPosition() {
+
+    const img = document.getElementById('xray-img');
+
+    const dot = document.getElementById('heart-dot');
+
+    const container = document.getElementById('bio-wrap');
+
+    if(!img || !dot || !container) return;
+
+    
+
+    const origW = 896, origH = 1195;
+
+    const heartX = 470, heartY = 320; 
+
+    
+
+    const cW = container.clientWidth;
+
+    const cH = container.clientHeight;
+
+    if(cW === 0 || cH === 0) return;
+
+    
+
+    const scale = Math.max(cW / origW, cH / origH);
+
+    const scaledW = origW * scale;
+
+    
+
+    const offsetX = (cW - scaledW) / 2;
+
+    const offsetY = 0;
+
+    
+
+    const finalX = offsetX + (heartX * scale);
+
+    const finalY = offsetY + (heartY * scale);
+
+    
+
+    const newLeft = finalX + 'px';
+
+    const newTop = finalY + 'px';
+
+    
+
+    if (dot.style.left !== newLeft) dot.style.left = newLeft;
+
+    if (dot.style.top !== newTop) dot.style.top = newTop;
+
+}
+
+window.addEventListener('resize', updateHeartPosition);
+
+setInterval(updateHeartPosition, 500);
+
+
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    if (typeof qt !== 'undefined') {
+
+        new QWebChannel(qt.webChannelTransport, channel => {
+
+            backend = channel.objects.backend;
+
+            
+
+            backend.voice_state_changed.connect(function(act) {
+
+                isVoiceActive = act;
+
+                document.getElementById('st-listen').textContent = act ? '● DİNLİYOR' : '● Uyku Modu';
+
+            });
+
+
+
+            backend.ultron_speaking_changed.connect(function(act) {
+
+                isUltronSpeaking = act;
+
+            });
+
+
+
+            backend.mic_volume_changed.connect(function(vol) {
+
+                micVolume = vol;
+
+            });
+
+
+
+            // Kaldirdigimiz eski satir (dummy connection to avoid duplicate)
+
+            backend.ultron_speaking_changed.connect(function(act) {
+
+                isUltronSpeaking = act;
+
+            });
+
+        });
+
+    }
+
+});
+
+</script>
+
+</body>
+
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

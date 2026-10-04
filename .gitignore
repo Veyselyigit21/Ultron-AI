@@ -1,0 +1,10 @@
+﻿venv/
+.env
+__pycache__/
+*.pyc
+data/
+Ollama/
+.vscode/
+.idea/
+wakeup.txt
+*.log

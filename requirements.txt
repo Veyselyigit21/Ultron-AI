@@ -1,0 +1,7 @@
+requests
+python-dotenv
+colorama
+SpeechRecognition
+edge-tts
+pygame-ce
+pyaudio
