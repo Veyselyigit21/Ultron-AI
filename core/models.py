@@ -26,7 +26,8 @@ CANDIDATES = {
 
 
 def is_valid(path: Path) -> bool:
-    return (path / "am" / "final.mdl").exists() and (path / "conf" / "model.conf").exists()
+    return ((path / "am" / "final.mdl").exists() and (path / "conf" / "model.conf").exists()) or \
+           ((path / "final.mdl").exists() and (path / "mfcc.conf").exists())
 
 
 def _unwrap(path: Path) -> Path | None:
@@ -53,7 +54,7 @@ def diagnose(kind: str) -> str:
     for c in CANDIDATES[kind]:
         if c.exists() and not _unwrap(c):
             return (f"'{c}' klasörü var ama geçerli bir Vosk modeli değil "
-                    f"(am/final.mdl ve conf/model.conf bulunamadı). Yeniden indir: python tools/setup_models.py")
+                    f"(final.mdl bulunamadı). Yeniden indir: python tools/setup_models.py")
     return f"Vosk {kind.upper()} modeli bulunamadı. İndir: python tools/setup_models.py"
 
 

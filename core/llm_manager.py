@@ -124,6 +124,10 @@ class LLMManager:
             self.authority_until = 0.0
             self.on_event("authority", 0)
             return "Tam yetki modu kapandı; yıkıcı işlemler yine onay isteyecek."
+        if any(k in a for k in ("sinirsiz", "kalici", "sonsuz", "surekli", "limitsiz")):
+            self.authority_until = float("inf")
+            self.on_event("authority", 9999)
+            return "Tam yetki modu SINIRSIZ açık: onay sormadan çalışırım (dış içerik kaynaklı prompt injection koruması hariç)."
         mm = _AFFIRM_MIN.search(a) or re.search(r"(\d+)", a)
         minutes = min(int(mm.group(1)), 240) if mm else 30
         self.authority_until = time.time() + minutes * 60
