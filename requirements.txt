@@ -1,7 +1,21 @@
+# Çekirdek
 requests
 python-dotenv
-colorama
+psutil
+numpy
+# Arayüz
+PyQt6
+PyQt6-WebEngine
+pynput
+# Ses
+sounddevice
+vosk
 SpeechRecognition
 edge-tts
 pygame-ce
-pyaudio
+pyttsx3
+# Bilgisayar kontrolü (Windows)
+pyautogui
+pycaw; sys_platform == "win32"
+comtypes; sys_platform == "win32"
+send2trash

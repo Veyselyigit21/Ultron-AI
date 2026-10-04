@@ -1,153 +1,246 @@
+"""ULTRON'un kulağı: sürekli dinler, "Ultron" der demez uyanır, sohbet penceresinde wake word istemez.
+
+Mimari (eski sürümden farklar):
+- Tek süreç, tek mikrofon akışı (eski: daemon + GUI iki ayrı akış, GUI her uyanışta yeniden açılıyordu).
+- VAD ile konuşma bölütlenir; sessizken Vosk çalışmaz. Kısmi (partial) sonuçlarla tetikleme yok → çift tetikleme yok.
+- Komut metni internet varsa Google STT (çok daha doğru), yoksa Vosk ile çevrilir.
+- ULTRON konuşurken mikrofon yok sayılır (kendi sesini duyup tetiklenmez).
+- Sohbet modu gerçekten çalışır: uyandıktan sonra N saniye wake word gerekmez.
+"""
+from __future__ import annotations
+
 import json
-import os
 import queue
 import threading
 import time
-import numpy as np
-import sounddevice as sd
-from colorama import Fore, Style
+from typing import Callable
 
-MODEL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vosk-model-small-tr-0.3'))
-WAKE_WORDS = ["hey ultron", "merhaba ultron", "ultron uyan", "ultron dinle", "ultron açıl", "ultron", "ultra", "ultran", "altron", "oltron", "ultra an", "altran", "akron", "uran", "atron", "otron", "antro", "voltran", "uç rol", "uykusu rol", "uçurol", "uçu rol", "turan", "o çukura", "botu"]
+from core import models, net
+from core.config import get_logger, settings
+from senses.vad import Segmenter, rms
+from senses.wake import find_wake
+
+log = get_logger("ultron.ear")
+SR = 16000
+FRAME = 1600  # 100 ms
+
 
 class BackgroundEar:
-    def __init__(self, callback, volume_callback=None, mouth=None):
-        self.callback = callback
-        self.volume_callback = volume_callback
+    def __init__(self, on_wake: Callable[[], None], on_command: Callable[[str], None],
+                 on_level: Callable[[float], None] | None = None, on_state: Callable[[str], None] | None = None,
+                 on_error: Callable[[str], None] | None = None, mouth=None):
+        self.on_wake, self.on_command = on_wake, on_command
+        self.on_level = on_level or (lambda v: None)
+        self.on_state = on_state or (lambda s: None)
+        self.on_error = on_error or (lambda m: None)
         self.mouth = mouth
         self.running = False
         self.paused = False
-        self.conversation_mode = False
-        self.last_conversation_time = 0
-        self.last_wake_time = 0
-        self.q = queue.Queue()
-        self.woke_in_this_utterance = False
+        self._q: "queue.Queue[bytes]" = queue.Queue(maxsize=200)
+        self._convo_until = 0.0
+        self._last_wake = 0.0
+        self._state = ""
+        self._tr = self._en = None
+        self._seg = Segmenter(frame_ms=100)
 
-    def _audio_callback(self, indata, frames, time_info, status):
+    # ───────── dış API ─────────
+    def start(self) -> None:
         if self.running:
-            import numpy as np
-            audio_data = np.frombuffer(indata, dtype=np.int16).astype(np.float32)
-            rms = np.sqrt(np.mean(audio_data**2))
-            vol = min(rms / 40.0, 100.0)
-            
-            if self.volume_callback:
-                self.volume_callback(vol)
-            self.q.put(bytes(indata))
-
-    def start_listening(self):
+            return
         self.running = True
-        threading.Thread(target=self._process_audio, daemon=True).start()
+        threading.Thread(target=self._loop, daemon=True, name="ear").start()
 
-    def stop_listening(self):
+    def stop(self) -> None:
         self.running = False
 
-    def pause(self):
+    def pause(self) -> None:
         self.paused = True
 
-    def resume(self, as_conversation=True):
+    def resume(self) -> None:
         self.paused = False
-        while not self.q.empty():
-            try: self.q.get_nowait()
-            except: break
-        if as_conversation:
-            self.conversation_mode = True
-            self.last_conversation_time = time.time()
+        self._drain()
 
-    def _process_audio(self):
-        try:
-            from vosk import Model, KaldiRecognizer
-            model = Model(MODEL_PATH)
-            rec = KaldiRecognizer(model, 16000)
-            
+    def trigger(self) -> None:
+        """Kısayol/tray ile elle uyandırma: wake word gerekmeden sohbet moduna girer."""
+        self._enter_conversation()
+        self.on_wake()
+
+    def extend_conversation(self) -> None:
+        """ULTRON cevabı bitirince çağrılır; takip sorusu için pencereyi yeniler."""
+        if time.time() < self._convo_until + 60:
+            self._convo_until = time.time() + settings["conversation_window_s"]
+
+    # ───────── iç ─────────
+    def _set_state(self, s: str) -> None:
+        if s != self._state:
+            self._state = s
+            self.on_state(s)
+
+    def _enter_conversation(self) -> None:
+        self._convo_until = time.time() + settings["conversation_window_s"]
+        self._set_state("awake")
+
+    def _drain(self) -> None:
+        while True:
             try:
-                MODEL_PATH_EN = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vosk-model-en'))
-                model_en = Model(MODEL_PATH_EN)
-                rec_en = KaldiRecognizer(model_en, 16000)
-                has_en = True
-            except:
-                has_en = False
-            print(f"{Fore.CYAN}[ULTRON] Vosk STT hazir, dinleme aktif.{Style.RESET_ALL}")
+                self._q.get_nowait()
+            except queue.Empty:
+                break
+        self._seg.reset()
+
+    def _load_models(self) -> bool:
+        try:
+            from vosk import KaldiRecognizer, Model, SetLogLevel
+            SetLogLevel(-1)
         except Exception as e:
-            print(f"{Fore.RED}[ULTRON] Vosk yuklenemedi: {e}{Style.RESET_ALL}")
+            self.on_error(f"Vosk yüklenemedi: {e}  (pip install vosk)")
+            return False
+        self._set_state("loading")
+        tr = models.find_model("tr")
+        if not tr:
+            self.on_error(models.diagnose("tr") + " — internet varsa otomatik indirmeyi deniyorum…")
+            tr = models.ensure("tr")
+        if not tr:
+            self.on_error("TR Vosk modeli yok; sadece Google STT ile (internet gerekir) çalışabilirim.")
+        else:
+            self._tr = KaldiRecognizer(Model(str(tr)), SR)
+        if settings["wake_use_en"]:
+            en = models.find_model("en")
+            if en:
+                try:
+                    self._en = KaldiRecognizer(Model(str(en)), SR)
+                except Exception as e:
+                    log.warning("EN model yüklenemedi: %s", e)
+        return True
+
+    @staticmethod
+    def _vosk_text(rec, pcm: bytes) -> str:
+        if rec is None:
+            return ""
+        rec.AcceptWaveform(pcm)
+        return json.loads(rec.FinalResult()).get("text", "").strip()
+
+    def _google_text(self, pcm: bytes) -> str:
+        import speech_recognition as sr
+        r = sr.Recognizer()
+        r.operation_timeout = 7
+        try:
+            return r.recognize_google(sr.AudioData(pcm, SR, 2), language="tr-TR").strip()
+        except sr.UnknownValueError:
+            return ""
+        except sr.RequestError as e:
+            net.mark(False)
+            log.warning("Google STT ulaşılamadı: %s", e)
+            raise
+
+    def _transcribe(self, pcm: bytes) -> str:
+        eng = settings["stt_engine"]
+        if eng in ("auto", "google") and net.is_online():
+            try:
+                t = self._google_text(pcm)
+                if t or eng == "google":
+                    return t
+            except Exception:
+                pass
+        return self._vosk_text(self._tr, pcm)
+
+    def _handle(self, pcm: bytes) -> None:
+        now = time.time()
+        convo = now < self._convo_until
+        if convo:
+            self._set_state("hearing")
+            text = self._transcribe(pcm)
+            if not text:
+                self._set_state("awake")
+                return
+            found, rest = find_wake(text, settings["wake_threshold"])
+            if found:
+                text = rest
+                if not text:
+                    self._enter_conversation()
+                    self.on_wake()
+                    return
+            self._enter_conversation()
+            self.on_command(text)
             return
 
-        with sd.RawInputStream(samplerate=16000, blocksize=4000, dtype='int16',
-                               channels=1, callback=self._audio_callback):
-            while self.running:
-                if self.conversation_mode and time.time() - self.last_conversation_time > 15:
-                    self.conversation_mode = False
-
+        # uyku: yalnızca wake word ara
+        t_tr = self._vosk_text(self._tr, pcm)
+        found, rest = find_wake(t_tr, settings["wake_threshold"])
+        if not found and self._en is not None:
+            t_en = self._vosk_text(self._en, pcm)
+            found, rest = find_wake(t_en, settings["wake_threshold"])
+            t_tr = t_en if found else t_tr
+        if not found and self._tr is None and net.is_online():  # Vosk yoksa Google ile ara
+            try:
+                found, rest = find_wake(self._google_text(pcm), settings["wake_threshold"])
+            except Exception:
+                pass
+        if not found:
+            return
+        if now - self._last_wake < 2.0:
+            return
+        self._last_wake = now
+        log.info("Wake word: %r", t_tr)
+        seconds = len(pcm) / (SR * 2)
+        cmd = rest
+        if seconds > 1.6 or rest:  # aynı nefeste komut verilmiş olabilir → daha doğru çeviri
+            if net.is_online() and settings["stt_engine"] != "vosk":
                 try:
-                    data = self.q.get(timeout=0.5)
-                except queue.Empty:
-                    continue
+                    g = self._google_text(pcm)
+                    f2, r2 = find_wake(g, settings["wake_threshold"])
+                    cmd = r2 if f2 else cmd
+                except Exception:
+                    pass
+        self._enter_conversation()
+        self.on_wake()
+        if cmd:
+            self.on_command(cmd)
 
-                is_final = rec.AcceptWaveform(data)
-                is_final_en = False
-                if has_en:
-                    is_final_en = rec_en.AcceptWaveform(data)
+    def _loop(self) -> None:
+        try:
+            self._load_models()
+        except Exception as e:
+            log.exception("Model yükleme hatası")
+            self.on_error(f"Ses modelleri yüklenemedi: {e}")
+        import sounddevice as sd
 
-                # Process English result carefully to not lose it
-                text_en = ""
-                if has_en:
-                    if is_final_en:
-                        text_en = json.loads(rec_en.Result()).get('text', '').lower().strip()
-                    else:
-                        text_en = json.loads(rec_en.PartialResult()).get('partial', '').lower().strip()
+        def cb(indata, frames, t, status):
+            try:
+                self._q.put_nowait(bytes(indata))
+            except queue.Full:
+                pass
 
-                if is_final:
-                    result = json.loads(rec.Result())
-                    text = result.get('text', '').lower().strip()
-                    
-                    words = text.split()
-                    has_wake = any(w in words or text.startswith(w) for w in WAKE_WORDS)
-                    
-                    # English model caught it in this utterance?
-                    if text_en and any(w in text_en for w in ["ultron", "altron", "ltron", "outrun", "eltron", "old run", "all drawn", "all drawn on", "oh drawn", "oh wrong", "or drawn", "oh it's wrong", "always run", "well drawn", "well from", "what wrong"]):
-                        has_wake = True
-                        self.woke_in_this_utterance = True
-
-                    if not self.woke_in_this_utterance and not has_wake:
-                        self.woke_in_this_utterance = False
-                        continue
-                        
-                    self.woke_in_this_utterance = False
-                    
-                    if not text:
-                        continue
-                        
-                    if not self.paused:
-                        command = text
-                        for w in WAKE_WORDS:
-                            command = command.replace(w, '')
-                        command = command.strip(' ,.')
-                        if command:
-                            self.pause()
-                            self.callback(command)
-                else:
-                    partial = json.loads(rec.PartialResult())
-                    text = partial.get('partial', '').lower().strip()
-                    
-                    words = text.split()
-                    is_wake = any(word.startswith(w) for word in words for w in WAKE_WORDS)
-                    
-                    if not is_wake and text_en:
-                        if any(w in text_en for w in ["ultron", "altron", "ltron", "outrun", "eltron", "old run", "all drawn", "all drawn on", "oh drawn", "oh wrong", "or drawn", "oh it's wrong", "always run", "well drawn", "well from", "what wrong"]):
-                            is_wake = True
-                            text = text_en
-
-                    if is_wake and not self.paused:
-                        now = time.time()
-                        if now - self.last_wake_time < 5.0:
+        self._set_state("sleep")
+        mute_until = 0.0
+        while self.running:
+            try:
+                with sd.RawInputStream(samplerate=SR, blocksize=FRAME, dtype="int16", channels=1,
+                                       device=settings["mic_device"], callback=cb):
+                    log.info("Mikrofon akışı açıldı")
+                    while self.running:
+                        try:
+                            data = self._q.get(timeout=0.3)
+                        except queue.Empty:
+                            if self._state in ("awake", "hearing") and time.time() > self._convo_until:
+                                self._set_state("sleep")
                             continue
-                        self.last_wake_time = now
-                        self.conversation_mode = True
-                        self.last_conversation_time = now
-                        self.woke_in_this_utterance = True
-                        print(f"{Fore.CYAN}[ULTRON] Wake word: {text}{Style.RESET_ALL}")
-                        
-                        
-                        
-                        self.pause()
-                        self.callback('')
-                        rec.Reset()
+                        if self.paused or (self.mouth is not None and self.mouth.speaking):
+                            self._seg.reset()
+                            mute_until = time.time() + 0.6
+                            continue
+                        if time.time() < mute_until:
+                            continue
+                        self.on_level(rms(data))
+                        seg = self._seg.feed(data)
+                        if self._state in ("awake", "hearing") and time.time() > self._convo_until and not self._seg.in_speech:
+                            self._set_state("sleep")
+                        if seg:
+                            try:
+                                self._handle(seg)
+                            except Exception:
+                                log.exception("Segment işlenemedi")
+            except Exception as e:
+                log.warning("Mikrofon hatası: %s", e)
+                self.on_error(f"Mikrofon açılamadı: {e} (5 sn sonra tekrar denenecek)")
+                time.sleep(5)

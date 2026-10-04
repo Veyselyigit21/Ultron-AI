@@ -1,59 +1,74 @@
-import os
+"""Uzun süreli hafıza: basit, bağımlılıksız anlamsal (kelime örtüşmesi) arama."""
+from __future__ import annotations
+
 import json
-import re
+import threading
+import time
+from pathlib import Path
+
+from core.config import BASE_DIR, DATA_DIR, atomic_write_json
+from core.textutil import words
+
+_STOP = {"ve", "bir", "bu", "su", "o", "ben", "sen", "de", "da", "mi", "mu", "icin", "ile", "ne", "ama", "gibi", "cok", "daha"}
+
 
 class MemoryVault:
-    def __init__(self, vault_path=None):
-        if not vault_path:
-            self.vault_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "long_term_memory.json"))
-        else:
-            self.vault_path = vault_path
-        self.memories = []
+    MAX = 1000
+
+    def __init__(self, path: Path | None = None):
+        self.path = Path(path) if path else DATA_DIR / "long_term_memory.json"
+        self._lock = threading.RLock()
+        self.items: list[dict] = []
         self._load()
 
     def _load(self):
-        if os.path.exists(self.vault_path):
-            try:
-                with open(self.vault_path, "r", encoding="utf-8") as f:
-                    self.memories = json.load(f)
-            except: pass
+        src = self.path
+        legacy = BASE_DIR / "long_term_memory.json"
+        if not src.exists() and legacy.exists():  # eski sürümden taşı
+            src = legacy
+        try:
+            if src.exists():
+                raw = json.loads(src.read_text(encoding="utf-8"))
+                for r in raw:
+                    if isinstance(r, str):
+                        self.items.append({"t": 0, "text": r})
+                    elif isinstance(r, dict) and r.get("text"):
+                        self.items.append({"t": r.get("t", 0), "text": r["text"]})
+        except Exception:
+            self.items = []
 
     def _save(self):
         try:
-            with open(self.vault_path, "w", encoding="utf-8") as f:
-                json.dump(self.memories, f, ensure_ascii=False, indent=2)
-        except: pass
+            atomic_write_json(self.path, self.items)
+        except Exception:
+            pass
 
-    def archive(self, text):
-        if not text or len(text) < 5: return
-        self.memories.append(text)
-        if len(self.memories) > 1000:
-            self.memories = self.memories[-1000:]
-        self._save()
-        
-    def _get_words(self, text):
-        return set(re.findall(r'\w+', text.lower()))
+    def archive(self, text: str) -> bool:
+        text = (text or "").strip()
+        if len(text) < 5:
+            return False
+        with self._lock:
+            self.items.append({"t": int(time.time()), "text": text})
+            self.items = self.items[-self.MAX:]
+            self._save()
+        return True
 
-    def search(self, query, top_k=2):
-        if not self.memories or not query:
+    @staticmethod
+    def _tok(s: str) -> set:
+        return {w for w in words(s) if w not in _STOP and len(w) > 1}
+
+    def search(self, query: str, top_k: int = 2, min_score: float = 0.12) -> list[str]:
+        q = self._tok(query)
+        if not q:
             return []
-        
-        query_words = self._get_words(query)
-        if not query_words:
-            return []
-            
         scored = []
-        for memory in self.memories:
-            mem_words = self._get_words(memory)
-            if not mem_words: continue
-            
-            # Basit Jaccard Benzerliği (Ortak Kelimeler / Toplam Kelimeler)
-            intersection = query_words.intersection(mem_words)
-            union = query_words.union(mem_words)
-            score = len(intersection) / len(union)
-            
-            if score > 0.1:  # En az %10 benzerlik
-                scored.append((score, memory))
-                
+        with self._lock:
+            for it in self.items:
+                m = self._tok(it["text"])
+                if not m:
+                    continue
+                score = len(q & m) / len(q | m)
+                if score >= min_score:
+                    scored.append((score, it["text"]))
         scored.sort(key=lambda x: x[0], reverse=True)
-        return [m[1] for m in scored[:top_k]]
+        return [t for _, t in scored[:top_k]]

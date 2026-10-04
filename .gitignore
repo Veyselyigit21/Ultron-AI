@@ -1,10 +1,12 @@
-﻿venv/
+venv/
+.venv/
 .env
 __pycache__/
 *.pyc
 data/
-Ollama/
-.vscode/
-.idea/
-wakeup.txt
+models/
 *.log
+plugins/_pending/
+plugins/_removed/
+plugins/_queue.json
+Ollama/
