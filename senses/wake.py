@@ -6,9 +6,11 @@ import re
 
 from core.textutil import fold
 
-CANON = "jarvis"
-ALIASES = {"jarvis", "carvis", "carviz", "cervis", "cerviz", "şarvis", "çervis", "javis", "cavis", "carpis", "carpiz", "jervis", "corvis"}
-_EXACT = {"jarvis", "carvis", "carviz"}
+CANON = "ultron"
+ALIASES = {"ultron", "altron", "oltron", "ultran", "altran", "ultrun", "ultiron", "ultrom", "ulton", "ultra", "ultra on",
+           "ultra an", "alt ron", "ult ron", "uc rol", "ucurol", "ucu rol", "uykusu rol", "eltron", "ltron", "outrun",
+           "old run", "all drawn", "oh drawn", "or drawn", "always run", "well drawn"}
+_EXACT = {"ultron", "altron", "oltron", "ultran", "ultrun"}
 
 def _tokens(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", fold(text))
@@ -35,7 +37,7 @@ def find_wake(text: str, threshold: float = 0.78):
             if i + 1 < len(toks):
                 joined.append((t + toks[i + 1], 2))
             for cand, n in joined:
-                if cand in ALIASES or (4 <= len(cand) <= 9 and "vis" in cand and similarity(cand) >= threshold):
+                if cand in ALIASES or (4 <= len(cand) <= 9 and "tr" in cand and similarity(cand) >= threshold):
                     hit = (i, n)
                     break
             if hit: break
