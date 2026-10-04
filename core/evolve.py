@@ -327,16 +327,52 @@ class EvolutionManager:
             bits.append("dikkat, şunları kullanıyor: " + ", ".join(v.flags) + " (bu yüzden komutları hep onay isteyecek)")
         return ". ".join(bits) + f". Kod: {path}. Kurayım mı?"
 
-    # ───────── kurulum ─────────
     def install(self, name: str, v: Validation, path, request: str = "") -> str:
         if v.requirements and not is_online():
             q = PLUGIN_DIR / "_queue.json"
             items = json.loads(q.read_text(encoding="utf-8")) if q.exists() else []
-            items.append({"name": name, "requirements": v.requirements})
+            items.append({"name": name, "path": str(path), "requirements": v.requirements, "request": request})
             atomic_write_json(q, items)
-            return "İnternet yok, paket kurulumu gerekiyor. Eklenti _pending içinde bekliyor; internet gelince tekrar iste."
+            # Arka planda internet bekleme thread'i başlat (tek sefer)
+            threading.Thread(target=self._drain_queue_when_online, daemon=True).start()
+            return "İnternet yok, eklenti kuyruğa alındı. İnternet gelince otomatik kurulacak, haber veririm."
         threading.Thread(target=self._install_bg, args=(name, v, path, request), daemon=True).start()
         return "Kuruluma başladım, bitince haber veririm."
+
+    def _drain_queue_when_online(self) -> None:
+        """İnternet bağlantısı gelene kadar bekler, sonra kuyruktaki eklentileri kurar."""
+        while not is_online():
+            time.sleep(15)
+        q = PLUGIN_DIR / "_queue.json"
+        if not q.exists():
+            return
+        try:
+            items = json.loads(q.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        if not items:
+            return
+        q.unlink(missing_ok=True)
+        self.brain.notify(f"İnternet bağlandı, {len(items)} bekleyen eklenti kuruluyor...")
+        for item in items:
+            try:
+                import pathlib
+                name = item["name"]
+                path = pathlib.Path(item["path"])
+                if not path.exists():
+                    self.brain.notify(f"'{name}' için bekleyen dosya bulunamadı, atlanıyor.")
+                    continue
+                # v nesnesini yeniden oluştur
+                code = path.read_text(encoding="utf-8")
+                v = validate(code, set(self.reg.names()))
+                v.requirements = item.get("requirements", v.requirements)
+                threading.Thread(target=self._install_bg,
+                                 args=(name, v, path, item.get("request", "")),
+                                 daemon=True).start()
+            except Exception as e:
+                log.exception("Kuyruk kurulum hatası")
+                self.brain.notify(f"'{item.get('name', '?')}' kuyruğu işlenirken hata: {e}")
+
 
     def _install_bg(self, name: str, v: Validation, path, request: str) -> None:
         try:

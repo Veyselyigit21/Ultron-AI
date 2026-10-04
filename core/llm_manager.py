@@ -339,7 +339,7 @@ class LLMManager:
             if not act:
                 notes.append(f"{name} diye bir komutum yok")
                 continue
-            if act.danger == "confirm" and self._needs_confirm(act, tainted):
+            if (act.danger == "confirm" or act.source != "core") and self._needs_confirm(act, tainted):
                 rest = calls[i:]
                 q = f"Şunu yapmak üzereyim: {self._describe(rest)}. Onaylıyor musun?"
                 return "\n".join(fb), notes, (q, lambda r=rest: self._run_confirmed(r)), tainted
