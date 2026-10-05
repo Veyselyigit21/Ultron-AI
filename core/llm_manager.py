@@ -179,17 +179,30 @@ class LLMManager:
         return PERSONA.format(owner=self.s["owner_name"], actions=self.reg.prompt_block(),
                               now=datetime.now().strftime("%d.%m.%Y %H:%M"))
 
-    def _online(self, messages, timeout) -> str:
+    def _online(self, messages, timeout):
         key = os.getenv("OPENROUTER_API_KEY")
         if not key:
             raise LLMUnavailable("OPENROUTER_API_KEY tanımlı değil (.env)")
         r = requests.post("https://openrouter.ai/api/v1/chat/completions",
                           headers={"Authorization": f"Bearer {key}", "X-Title": "ULTRON"},
-                          json={"model": self.s["online_model"], "messages": messages}, timeout=(5, timeout))
+                          json={"model": self.s["online_model"], "messages": messages, "stream": True}, timeout=(5, timeout), stream=True)
         if r.status_code in (401, 402, 403, 429):
             raise LLMUnavailable(f"API reddetti ({r.status_code})")
         r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
+        for line in r.iter_lines():
+            if line:
+                line = line.decode('utf-8')
+                if line.startswith('data: '):
+                    data = line[6:]
+                    if data == '[DONE]':
+                        break
+                    try:
+                        chunk = json.loads(data)
+                        delta = chunk['choices'][0]['delta']
+                        if 'content' in delta:
+                            yield delta['content']
+                    except Exception:
+                        pass
 
     def _ollama_models(self) -> list[str]:
         host = self.s["ollama_host"].rstrip("/")
@@ -220,17 +233,24 @@ class LLMManager:
                     return m
         return models[0]
 
-    def _offline(self, messages, timeout, code=False) -> str:
+    def _offline(self, messages, timeout, code=False):
         models = self._ollama_models()
         if not models:
             raise LLMUnavailable("Ollama'da yüklü model yok (MODEL_INSTALL: qwen2.5:7b ile indirebilirsin)")
         r = requests.post(self.s["ollama_host"].rstrip("/") + "/api/chat",
-                          json={"model": self.pick_model(models, code), "messages": messages, "stream": False},
-                          timeout=(5, max(timeout, 120)))
+                          json={"model": self.pick_model(models, code), "messages": messages, "stream": True},
+                          timeout=(5, max(timeout, 120)), stream=True)
         r.raise_for_status()
-        return r.json()["message"]["content"]
+        for line in r.iter_lines():
+            if line:
+                try:
+                    chunk = json.loads(line.decode('utf-8'))
+                    if 'message' in chunk and 'content' in chunk['message']:
+                        yield chunk['message']['content']
+                except Exception:
+                    pass
 
-    def _chat(self, messages, timeout: int = 45, code: bool = False) -> str:
+    def _chat(self, messages, timeout: int = 45, code: bool = False):
         mode = self.s["mode"]
         order = {"online": ["online"], "offline": ["offline"]}.get(mode, ["online", "offline"])
         errors = []
@@ -239,10 +259,11 @@ class LLMManager:
                 errors.append("online: geçici olarak devre dışı")
                 continue
             try:
-                text = self._online(messages, timeout) if prov == "online" else self._offline(messages, timeout, code)
+                gen = self._online(messages, timeout) if prov == "online" else self._offline(messages, timeout, code)
                 self.active_backend = prov
                 self.on_event("backend", prov)
-                return text
+                yield from gen
+                return
             except requests.RequestException as e:
                 errors.append(f"{prov}: ağ hatası ({type(e).__name__})")
                 if prov == "online":
@@ -258,23 +279,23 @@ class LLMManager:
 
     def complete(self, messages, code: bool = False) -> str:
         """Eklenti üretimi gibi dahili işler için (komut etiketi yok, uzun zaman aşımı)."""
-        return self._chat(messages, timeout=120, code=code)
+        return "".join(self._chat(messages, timeout=120, code=code))
 
     # ───────────────── ana giriş ─────────────────
-    def ask(self, text: str) -> Reply:
+    def ask(self, text: str, on_sentence: Callable | None = None) -> Reply:
         text = (text or "").strip()
         if not text:
             return Reply("")
         with self._lock:
             try:
-                return self._ask(text)
+                return self._ask(text, on_sentence)
             except LLMUnavailable as e:
                 return Reply(f"Patron, şu an hiçbir beyne ulaşamıyorum. ({e})")
             except Exception as e:
                 log.exception("ask hatası")
                 return Reply(f"Bir hata oluştu patron: {type(e).__name__}: {e}")
 
-    def _ask(self, text: str) -> Reply:
+    def _ask(self, text: str, on_sentence: Callable | None = None) -> Reply:
         if self.pending:
             question, runner = self.pending
             yn = parse_yes_no(text)
@@ -294,7 +315,71 @@ class LLMManager:
                [{"role": "user", "content": user_msg}]
         parts, notes, tainted, question = [], [], False, ""
         for _ in range(self.MAX_STEPS):
-            raw = self._chat(msgs)
+            raw = ""
+            buffer = ""
+            in_cmd = False
+            sentence_buffer = ""
+            
+            for chunk in self._chat(msgs):
+                raw += chunk
+                buffer += chunk
+                while buffer:
+                    if not in_cmd:
+                        cmd_start = buffer.find("[CMD:")
+                        if cmd_start != -1:
+                            pure = buffer[:cmd_start]
+                            if pure:
+                                sentence_buffer += pure
+                                while True:
+                                    match = re.search(r'([.!?\n]+(?:\s+|$))', sentence_buffer)
+                                    if not match:
+                                        break
+                                    end_idx = match.end()
+                                    sentence = sentence_buffer[:end_idx].strip()
+                                    if sentence and on_sentence:
+                                        on_sentence(sentence)
+                                    sentence_buffer = sentence_buffer[end_idx:]
+                            buffer = buffer[cmd_start:]
+                            in_cmd = True
+                        else:
+                            partial_idx = -1
+                            for i in range(1, 6):
+                                if buffer.endswith("[CMD:"[:i]):
+                                    partial_idx = len(buffer) - i
+                                    break
+                            
+                            if partial_idx != -1:
+                                pure = buffer[:partial_idx]
+                                buffer = buffer[partial_idx:]
+                            else:
+                                pure = buffer
+                                buffer = ""
+                                
+                            if pure:
+                                sentence_buffer += pure
+                                while True:
+                                    match = re.search(r'([.!?\n]+(?:\s+|$))', sentence_buffer)
+                                    if not match:
+                                        break
+                                    end_idx = match.end()
+                                    sentence = sentence_buffer[:end_idx].strip()
+                                    if sentence and on_sentence:
+                                        on_sentence(sentence)
+                                    sentence_buffer = sentence_buffer[end_idx:]
+                            
+                            if buffer:
+                                break
+                    else:
+                        cmd_end = buffer.find("]")
+                        if cmd_end != -1:
+                            buffer = buffer[cmd_end+1:]
+                            in_cmd = False
+                        else:
+                            break
+                            
+            if sentence_buffer.strip() and on_sentence:
+                on_sentence(sentence_buffer.strip())
+                
             clean, calls = self.reg.parse(raw)
             parts = [clean] if clean else []
             if not calls:

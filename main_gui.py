@@ -135,14 +135,36 @@ class Backend(QObject):
 
     def _ask(self, text: str) -> None:
         self.js("setThinking", True)
-        reply = self.llm.ask(text)
+        
+        streamed = []
+        def on_sentence(sent):
+            self.js("setThinking", False)
+            self.js("receiveMessage", sent)
+            self.mouth.speak(sent)
+            streamed.append(sent)
+
+        reply = self.llm.ask(text, on_sentence=on_sentence)
         self.js("setThinking", False)
-        if reply.display:
-            self.js("receiveMessage", reply.display)
-        if reply.speech:
-            self.mouth.speak(reply.speech)
-        else:
+        
+        streamed_full = " ".join(streamed).strip()
+        
+        if reply.display and reply.display != streamed_full:
+            rem = reply.display
+            if rem.startswith(streamed_full):
+                rem = rem[len(streamed_full):].strip()
+            if rem:
+                self.js("receiveMessage", rem)
+                
+        if reply.speech and reply.speech != streamed_full:
+            rem_speech = reply.speech
+            if rem_speech.startswith(streamed_full):
+                rem_speech = rem_speech[len(streamed_full):].strip()
+            if rem_speech:
+                self.mouth.speak(rem_speech)
+                
+        if not reply.speech and not streamed:
             self.ear.extend_conversation()
+            
         self._sync_confirm()
         self._sync_model()
 

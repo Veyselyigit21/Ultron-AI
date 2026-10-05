@@ -190,7 +190,60 @@ h3 {
 .badge{display:none;color:#ffb300;text-shadow:0 0 6px rgba(255,179,0,.6)}.badge.show{display:inline}
 .thinking{display:none;color:#00ffcc}.thinking.show{display:inline;animation:pulse 1s infinite}
 @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important}}
+
+/* ─ 3D ORB & HAND TRACKER UI ─ */
+.camera-panel {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 208px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    z-index: 100;
+}
+.camera-video {
+    display: none;
+}
+.camera-overlay {
+    width: 208px;
+    height: 156px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(0, 180, 255, 0.4);
+    border-radius: 4px;
+    transform: scaleX(-1);
+}
+.camera-status {
+    font-size: 10px;
+    color: #00c3ff;
+    text-align: center;
+    letter-spacing: 1px;
+}
+.hud-controls {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    display: flex;
+    gap: 10px;
+    z-index: 100;
+}
+.hud-btn {
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(0, 180, 255, 0.4);
+    color: #fff;
+    padding: 5px 15px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: 0.3s;
+}
+.hud-btn:hover {
+    background: rgba(0, 180, 255, 0.3);
+}
 </style>
+
 </head>
 <body>
 <div class="dashboard">
@@ -210,8 +263,19 @@ h3 {
     <!-- ORTA: ULTRON KÜRE -->
     <div class="panel center-panel">
         <h3>// ULTRON MERKEZİ ÇEKİRDEK</h3>
-        <div class="orb-wrapper">
-            <canvas id="orb-canvas"></canvas>
+        
+        <div class="orb-wrapper" style="position: relative;">
+            <div class="camera-panel" id="camera-panel" style="display: none;">
+                <video id="camera-video" muted playsInline class="camera-video"></video>
+                <canvas id="camera-overlay" width="208" height="156" class="camera-overlay"></canvas>
+                <div id="camera-status" class="camera-status">SHOW HANDS</div>
+            </div>
+            <div class="hud-controls">
+                <button id="btn-toggle-gestures" class="hud-btn">GESTURES OFF</button>
+                <button id="btn-zoom-in" class="hud-btn">+</button>
+                <button id="btn-zoom-out" class="hud-btn">−</button>
+                <button id="btn-reset" class="hud-btn">RESET</button>
+            </div>
         </div>
     </div>
     <!-- SAĞ: SİSTEM -->
@@ -275,195 +339,6 @@ window.onerror = function(msg, url, lineNo, columnNo, error) {
     if (h) { h.appendChild(d); h.scrollTop = h.scrollHeight; }
     return false;
 };
-// ULTRON / IRON MAN REAKTÖRÜ — Canvas 2D
-(function () {
-    const canvas = document.getElementById('orb-canvas');
-    const ctx    = canvas.getContext('2d');
-    let volume = 0, targetVol = 0, t = 0;
-    let timePhase = 0;
-    
-    // Konuşma simülasyonu için değişkenler
-    let speechEnvelope = 0;
-    let nextSyllableTime = 0;
-    function resize() {
-        const w = Math.floor(canvas.clientWidth  || 500);
-        const h = Math.floor(canvas.clientHeight || 500);
-        if (canvas.width !== w || canvas.height !== h) {
-            canvas.width = w;
-            canvas.height = h;
-        }
-    }
-    resize();
-    function drawSegmentRing(cx, cy, r, segCount, gapDeg, lineW, color, angle) {
-        const gapR   = gapDeg  * Math.PI / 180;
-        const arcLen = (Math.PI * 2 - gapR * segCount) / segCount;
-        ctx.strokeStyle = color;
-        ctx.lineWidth   = lineW;
-        for (let i = 0; i < segCount; i++) {
-            const start = angle + i * (arcLen + gapR);
-            ctx.beginPath();
-            ctx.arc(cx, cy, r, start, start + arcLen);
-            ctx.stroke();
-        }
-    }
-    function drawDotRing(cx, cy, r, count, angle, dotR, color) {
-        ctx.fillStyle = color;
-        for (let i = 0; i < count; i++) {
-            const a  = angle + (i / count) * Math.PI * 2;
-            const px = cx + r * Math.cos(a);
-            const py = cy + r * Math.sin(a);
-            ctx.beginPath();
-            ctx.arc(px, py, dotR, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }
-    function drawTickRing(cx, cy, r, count, angle, len, w, color) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth   = w;
-        for (let i = 0; i < count; i++) {
-            const a  = angle + (i / count) * Math.PI * 2;
-            const ca = Math.cos(a), sa = Math.sin(a);
-            ctx.beginPath();
-            ctx.moveTo(cx + (r - len / 2) * ca, cy + (r - len / 2) * sa);
-            ctx.lineTo(cx + (r + len / 2) * ca, cy + (r + len / 2) * sa);
-            ctx.stroke();
-        }
-    }
-    let lastFrameTime = 0;
-    window.window.startupProgress = 1.0;
-    window.window.isStartingUp = false;
-    function frame(time) {
-        requestAnimationFrame(frame);
-        if (time - lastFrameTime < 16) return; // ~60 FPS
-        lastFrameTime = time;
-        
-        t += 0.006;
-        timePhase += 0.033;
-        
-        if (window.isStartingUp) {
-            window.startupProgress += 0.015; // Approx 1.0 sec animation
-            if (window.startupProgress >= 1.0) {
-                window.startupProgress = 1.0;
-                window.isStartingUp = false;
-            }
-        }
-        let rawVol = 0;
-        if (isUltronSpeaking) {
-            // Gerçekçi hece (syllable) simülasyonu
-            if (timePhase > nextSyllableTime) {
-                // Yeni bir hece veya kelime vurgusu
-                speechEnvelope = 50 + Math.random() * 50; // 50-100 arası ani ses patlaması
-                // Sonraki hece arası boşluk (50ms ile 250ms arası, rastgele duraksamalar)
-                nextSyllableTime = timePhase + 0.1 + Math.random() * 0.4;
-            }
-            // Hecenin sönümlenmesi (Decay)
-            speechEnvelope *= 0.82; 
-            rawVol = speechEnvelope;
-        } else if (isVoiceActive) {
-            rawVol = micVolume; // GERCEK SES
-        } else {
-            rawVol = 15 + Math.sin(timePhase * 1.5) * 15; // Derin ve sakin idle nefes alma (0-30 arası)
-            speechEnvelope = 0;
-        }
-        
-        if (isNaN(rawVol)) rawVol = 0; // Safety check
-        
-        targetVol = Math.min(rawVol / 75.0, 1.0);
-        
-        volume += (targetVol - volume) * 0.25; // Daha hızlı (snappy) tepki veren lerp
-        if (isNaN(volume)) volume = 0; // Safety check
-        
-        resize(); // Güvenli resize kontrolü (sadece değişirse günceller)
-        const W = canvas.width, H = canvas.height;
-        const cx = W / 2, cy = H / 2;
-        // Taban yarıçap (ekrana sığacak şekilde küçültüldü ki büyümeye yer kalsın)
-        
-        // Easing function for sick iron-man assembly effect
-        const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-        const p = ease(window.startupProgress);
-        const BASE = Math.min(W, H) * 0.22 * p; // Size reduced from 0.35 to 0.22 and multiplied by progress
- 
-        const S    = 1 + volume * 0.45; // ÇOK DAHA AGRESİF BÜYÜME (Pumping)
-        ctx.clearRect(0, 0, W, H);
-        // ── Arka plan koyu dış parlaması ──
-        const bgGlow = ctx.createRadialGradient(cx, cy, BASE * 0.3, cx, cy, BASE * 1.6);
-        bgGlow.addColorStop(0,   `rgba(0, 180, 255,${0.05 + volume * 0.05})`);
-        bgGlow.addColorStop(0.6, `rgba(0, 40, 120,0.02)`);
-        bgGlow.addColorStop(1,   'rgba(0,0,0,0)');
-        ctx.fillStyle = bgGlow;
-        ctx.beginPath(); ctx.arc(cx, cy, BASE * 1.6, 0, Math.PI * 2); ctx.fill();
-        // ── DIŞTAN İAE: Halkalar (indir.jpg referansı) ──
-        const introSpin = (1 - p) * Math.PI * 5;
-        const ang1 = t * 0.18 + introSpin;
-        const ang2 = -t * 0.28 - introSpin;
-        const ang3 = t * 0.12;
-        const ang4 = -t * 0.22;
-        const ang5 = t * 0.35;
-        const C1 = `rgba(0, 180, 255,${0.55+volume*0.3})`;
-        const C2 = `rgba(0, 180, 255,${0.65+volume*0.3})`;
-        const C3 = `rgba(0, 200, 255,${0.5+volume*0.2})`;
-        const C4 = `rgba(0, 180, 255,${0.7+volume*0.3})`;
-        // Halka 1: En dış ince çizgi
-        ctx.beginPath();
-        ctx.arc(cx, cy, BASE * S * 1.0, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(0, 180, 255,${0.25+volume*0.15})`;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        // Halka 2: Noktalı dış halka
-        drawDotRing(cx, cy, BASE * S * 0.95, 60, ang1, 1.2, `rgba(0, 180, 255,${0.4+volume*0.2})`);
-        // Halka 3: Büyük segmentli ana dış halka
-        drawSegmentRing(cx, cy, BASE * S * 0.90, 4, 5, 3.5, C1, ang2, 60);
-        // Halka 4: Kısa tick'ler (saat gibi)
-        drawTickRing(cx, cy, BASE * S * 0.84, 36, ang3, 5, 1, `rgba(0, 180, 255,${0.45+volume*0.2})`);
-        // Halka 5: Yoğun segmentli halka (indir.jpg'deki yoğun orta halka)
-        drawSegmentRing(cx, cy, BASE * S * 0.79, 12, 3, 2, C2, ang4, 20);
-        // Halka 6: Kare/dikdörtgen işaretli halka (indir.jpg karakteristiği)
-        const sq6 = BASE * S * 0.74;
-        for (let i = 0; i < 20; i++) {
-            const a  = ang5 + (i / 20) * Math.PI * 2;
-            const px = cx + sq6 * Math.cos(a);
-            const py = cy + sq6 * Math.sin(a);
-            const sz = i % 4 === 0 ? 4 : 2;
-            ctx.fillStyle = i % 4 === 0 ? C1 : `rgba(0, 180, 255,0.4)`;
-            ctx.fillRect(px - sz / 2, py - sz / 2, sz, sz);
-        }
-        // Halka 7: Ters dönen segment
-        drawSegmentRing(cx, cy, BASE * S * 0.68, 8, 4, 2.5, C3, -ang2 * 1.2, 30);
-        // Halka 8: Noktalı iç çember
-        drawDotRing(cx, cy, BASE * S * 0.62, 40, ang2, 1.2, `rgba(0, 200, 255,${0.6+volume*0.2})`);
-        // ── Merkez Çekirdek Aizgisi ──
-        ctx.beginPath();
-        ctx.arc(cx, cy, BASE * 0.52 * S, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(100, 220, 255,${0.7+volume*0.3})`;
-        ctx.lineWidth   = 2.5;
-        ctx.stroke();
-        // İç alan hafif dolu (glow)
-        const innerGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, BASE * 0.52 * S);
-        innerGlow.addColorStop(0,   `rgba(100, 220, 255,${0.15 + volume*0.1})`);
-        innerGlow.addColorStop(1,   'rgba(0, 180, 255,0)');
-        ctx.fillStyle = innerGlow;
-        ctx.fill();
-        // ── Merkez Metin ──
-        ctx.font        = `bold ${Math.floor(BASE * 0.15 * S * p)}px "Courier New", Courier, monospace`;
-        ctx.textAlign   = 'center';
-        ctx.textBaseline= 'middle';
-        ctx.fillStyle = `rgba(100, 220, 255,${0.85+volume*0.15})`;
-        ctx.fillText('ULTRON', cx, cy);
-        // ── Ses dalgaları ──
-        if (volume > 0.05) {
-            for (let i = 0; i < 3; i++) {
-                const wr = BASE * S * (1.02 + i * 0.05) + volume * 25 * (i + 1);
-                const wa = Math.max(0, (0.4 - i * 0.12) * volume);
-                ctx.beginPath();
-                ctx.arc(cx, cy, wr, 0, Math.PI * 2);
-                ctx.strokeStyle = `rgba(0, 180, 255,${wa})`;
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
-            }
-        }
-    }
-    frame();
-})();
 // ECG ANİMASYONU
 (function () {
     const c   = document.getElementById('ecg-canvas');
@@ -607,5 +482,96 @@ document.addEventListener('DOMContentLoaded', () => {
     setListenState('loading');
 });
 </script>
+
+<script type="module">
+  import { createOrbScene } from './assets/orb.js';
+  import { HandTracker } from './assets/handTracker.js';
+
+  const container = document.querySelector('.orb-wrapper');
+  
+  // Clean up any remaining canvases that might conflict
+  const existingCanvas = document.getElementById('orb-canvas');
+  if (existingCanvas) existingCanvas.remove();
+
+  const scene = createOrbScene(container);
+  
+  const video = document.getElementById('camera-video');
+  const overlay = document.getElementById('camera-overlay');
+  const statusEl = document.getElementById('camera-status');
+  const toggleBtn = document.getElementById('btn-toggle-gestures');
+  const cameraPanel = document.getElementById('camera-panel');
+  
+  const MODE_LABEL = {
+    idle: "STANDBY",
+    spin: "SPIN",
+    zoom: "ZOOM",
+  };
+
+  const tracker = new HandTracker(video, overlay, {
+    onRotate: (dt, dp) => scene.rotateBy(dt, dp),
+    onZoom: (factor) => scene.zoomBy(factor),
+    onStatus: (status) => {
+        if (status.hands > 0) {
+            statusEl.textContent = `${status.hands} HAND${status.hands > 1 ? "S" : ""} · ${MODE_LABEL[status.mode]}`;
+        } else {
+            statusEl.textContent = "SHOW HANDS";
+        }
+    }
+  });
+
+  let cameraOn = false;
+  let initializing = false;
+
+  toggleBtn.addEventListener('click', async () => {
+      if (initializing) return;
+      if (cameraOn) {
+          tracker.stop();
+          cameraOn = false;
+          toggleBtn.textContent = "GESTURES OFF";
+          statusEl.textContent = "SHOW HANDS";
+          cameraPanel.style.display = 'none';
+      } else {
+          initializing = true;
+          toggleBtn.textContent = "INITIALIZING...";
+          try {
+              await tracker.start();
+              cameraOn = true;
+              toggleBtn.textContent = "GESTURES ON";
+              cameraPanel.style.display = 'flex';
+          } catch (e) {
+              console.error(e);
+              toggleBtn.textContent = "ERROR";
+              setTimeout(() => toggleBtn.textContent = "GESTURES OFF", 2000);
+          }
+          initializing = false;
+      }
+  });
+
+  document.getElementById('btn-zoom-in').addEventListener('click', () => scene.zoomIn());
+  document.getElementById('btn-zoom-out').addEventListener('click', () => scene.zoomOut());
+  document.getElementById('btn-reset').addEventListener('click', () => scene.resetView());
+
+  window.addEventListener("keydown", (e) => {
+      switch (e.key) {
+        case "+":
+        case "=":
+          scene.zoomIn();
+          break;
+        case "-":
+        case "_":
+          scene.zoomOut();
+          break;
+        case "r":
+        case "R":
+          scene.resetView();
+          break;
+        case "g":
+        case "G":
+          toggleBtn.click();
+          break;
+      }
+  });
+</script>
 </body>
+
 </html>
